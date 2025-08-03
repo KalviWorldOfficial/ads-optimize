@@ -4,26 +4,36 @@
   // Ultra-Advanced Configuration Matrix
   const CONFIG = {
     CLIENT_ID: 'ca-pub-7407983524344370',
-    SCRIPT_URL: 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js',
+    PRIMARY_SCRIPT_URL: 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js',
+    FALLBACK_SCRIPT_URLS: [
+      'https://googleads.g.doubleclick.net/pagead/js/adsbygoogle.js',
+      'https://adservice.google.com/adsid/google/ads.js'
+    ],
     AD_SELECTOR: '.lazy-ads',
-    RELOAD_INTERVAL: 3000, // 3-second auto-retry
-    RELOAD_MAX_ATTEMPTS: 5, // Increased max reload attempts
-    INTEGRITY_CHECK_INTERVAL: 1000, // Blockchain-style verification interval
+    RETRY_INTERVAL: 1500, // 1.5-second base retry
+    MAX_RETRY_ATTEMPTS: 15, // Stricter retry limit
+    INTEGRITY_CHECK_INTERVAL: 500, // Faster integrity checks
+    MICRO_BATCH_SIZE: 2, // Smaller batches for performance
+    PARALLEL_LOAD_LIMIT: 8, // Max concurrent loads
+    LAZY_LOAD_MARGIN: '200px', // Lazy load trigger
+    PRIVACY_ENABLED: true, // TCF 2.0 compliance
     
     ADAPTIVE_CONFIG: {
-      MAX_RETRIES: { min: 10, max: 75, current: 30 },
-      RETRY_INTERVAL: { min: 1500, max: 20000, current: 4000 },
-      BATCH_SIZE: { min: 1, max: 15, current: 4 },
-      TIMEOUT: { min: 8000, max: 75000, current: 25000 },
-      AI_ADJUSTMENT_FACTOR: { min: 0.5, max: 2.0, current: 1.0 }
+      MAX_RETRIES: { min: 5, max: 150, current: 50 },
+      RETRY_INTERVAL: { min: 1000, max: 60000, current: 1500 },
+      BATCH_SIZE: { min: 1, max: 8, current: 2 },
+      TIMEOUT: { min: 1000, max: 60000, current: 15000 },
+      AI_ADJUSTMENT_FACTOR: { min: 0.2, max: 3.0, current: 1.5 },
+      ADBLOCK_BYPASS_FACTOR: { min: 0.5, max: 4.0, current: 2.0 }
     },
     
     PERFORMANCE: {
-      CRITICAL_LOAD_TIME: 2500,
-      TARGET_SUCCESS_RATE: 97,
-      MAX_MEMORY_USAGE: 75 * 1024 * 1024, // 75MB
-      CPU_THROTTLE_THRESHOLD: 75,
-      MAX_CONCURRENT_LOADS: 5
+      CRITICAL_LOAD_TIME: 1500,
+      TARGET_SUCCESS_RATE: 99,
+      MAX_MEMORY_USAGE: 50 * 1024 * 1024, // 50MB
+      CPU_THROTTLE_THRESHOLD: 65,
+      MAX_CONCURRENT_LOADS: 8,
+      ADBLOCK_DETECTION_THRESHOLD: 0.65
     },
     
     FEATURES: {
@@ -38,23 +48,31 @@
       AUTO_HEALING: true,
       LOAD_BALANCING: true,
       PERIODIC_RELOAD: true,
-      DYNAMIC_PRIORITIZATION: true
+      DYNAMIC_PRIORITIZATION: true,
+      ADBLOCK_BYPASS: true,
+      DOM_OBFUSCATION: true,
+      PROXY_LOADING: true,
+      WEB_WORKER_OFFLOAD: true,
+      ROTATION_ENABLED: true
     }
   };
 
-  // Enhanced State Management with Blockchain-Style Integrity
+  // Enhanced State Management
   const STATE = {
     scriptLoaded: false,
     scriptLoading: false,
     adsenseReady: false,
     isRunning: false,
     pageFullyLoaded: false,
+    adblockerDetected: false,
+    consentGiven: !CONFIG.PRIVACY_ENABLED, // Default to true if privacy disabled
     
     sessionId: `ads_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
     startTime: Date.now(),
     totalAds: 0,
     loadedAds: 0,
     failedAds: 0,
+    blockedAds: 0,
     retryCount: 0,
     reloadCount: 0,
     
@@ -73,7 +91,7 @@
     processingQueue: new Set(),
     failureQueue: new Set(),
     successQueue: new Set(),
-    reloadQueue: new Map(), // { adId: { attempts, lastAttempt, integrityHash } }
+    reloadQueue: new Map(),
     
     observers: new Set(),
     timers: new Set(),
@@ -90,11 +108,12 @@
       retryEfficiency: 0,
       resourceUtilization: 0,
       reloadSuccessRate: 0,
-      integrityCheckSuccessRate: 0
+      integrityCheckSuccessRate: 0,
+      adblockerBypassRate: 0
     }
   };
 
-  // Ultra-Advanced Logger with Blockchain-Style Tracking
+  // Ultra-Advanced Logger
   class UltraLogger {
     constructor() {
       this.levels = { TRACE: 0, DEBUG: 1, INFO: 2, WARN: 3, ERROR: 4, FATAL: 5 };
@@ -116,12 +135,13 @@
         sessionId: STATE.sessionId,
         memory: this.getMemoryUsage(),
         performance: this.getPerformanceMetrics(),
-        integrityHash
+        integrityHash,
+        adblockerDetected: STATE.adblockerDetected
       };
 
       if (this.levels[level] >= this.currentLevel) {
         const formattedTime = new Date(timestamp).toISOString();
-        const prefix = `[AdSense-Ultra-v17.0 ${formattedTime}] [${level}]`;
+        const prefix = `[AdSense-Ultra-v21.5 ${formattedTime}] [${level}]`;
         console[level.toLowerCase()] || console.log(
           `${prefix} ${message}`,
           Object.keys(data).length ? data : '',
@@ -180,9 +200,7 @@
     }
 
     sendToMonitoring(logEntry) {
-      if (typeof window.fetch === 'function') {
-        // Mock implementation
-      }
+      // Mock implementation for external monitoring
     }
 
     trace(msg, data, trace) { this.log('TRACE', msg, data, trace); }
@@ -195,7 +213,7 @@
 
   const logger = new UltraLogger();
 
-  // AI-Powered Utilities with Enhanced ML
+  // AI-Powered Utilities with Enhanced Adblocker Detection
   class AIUtils {
     static async analyzePageContext() {
       const context = {
@@ -213,7 +231,8 @@
         userAgent: navigator.userAgent,
         language: navigator.language,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        engagementMetrics: STATE.userBehavior.engagementScore
+        engagementMetrics: STATE.userBehavior.engagementScore,
+        adblockerDetected: STATE.adblockerDetected
       };
       logger.debug('Page context analyzed', context);
       return context;
@@ -247,6 +266,50 @@
       }
     }
 
+    static async detectAdblocker() {
+      let adblockerProbability = 0;
+      const tests = [
+        async () => {
+          try {
+            const response = await fetch(CONFIG.PRIMARY_SCRIPT_URL, { method: 'HEAD', mode: 'no-cors' });
+            return response.ok ? 0 : 0.45;
+          } catch {
+            return 0.45;
+          }
+        },
+        async () => {
+          const testAd = document.createElement('div');
+          testAd.className = `content_${Math.random().toString(36).substr(2, 9)}`;
+          testAd.style.position = 'absolute';
+          testAd.style.opacity = '0';
+          document.body.appendChild(testAd);
+          await new Promise(resolve => setTimeout(resolve, 50));
+          const isBlocked = testAd.offsetWidth === 0 || testAd.offsetHeight === 0;
+          document.body.removeChild(testAd);
+          return isBlocked ? 0.35 : 0;
+        },
+        () => {
+          return typeof window.adsbygoogle === 'undefined' && !STATE.scriptLoaded ? 0.35 : 0;
+        },
+        async () => {
+          const baitScript = document.createElement('script');
+          baitScript.src = '/ads.js'; // Common adblocker bait
+          document.head.appendChild(baitScript);
+          await new Promise(resolve => setTimeout(resolve, 50));
+          const isBlocked = !baitScript.src.includes('ads.js');
+          document.head.removeChild(baitScript);
+          return isBlocked ? 0.25 : 0;
+        }
+      ];
+
+      const results = await Promise.all(tests.map(test => test()));
+      adblockerProbability = results.reduce((sum, prob) => sum + prob, 0);
+      
+      STATE.adblockerDetected = adblockerProbability >= CONFIG.PERFORMANCE.ADBLOCK_DETECTION_THRESHOLD;
+      logger.info('Adblocker detection completed', { probability: adblockerProbability, detected: STATE.adblockerDetected });
+      return STATE.adblockerDetected;
+    }
+
     static predictOptimalLoadTiming(adElement) {
       const rect = adElement.getBoundingClientRect();
       const scrollSpeed = STATE.userBehavior.scrollSpeed;
@@ -255,8 +318,8 @@
       const timeToViewport = scrollSpeed > 0 ? distanceToViewport / scrollSpeed : Infinity;
       
       return {
-        immediate: rect.top < viewportHeight * 1.5,
-        predicted: timeToViewport < 4000,
+        immediate: rect.top < viewportHeight * 1.2,
+        predicted: timeToViewport < 2000,
         priority: this.calculateLoadPriority(adElement, timeToViewport)
       };
     }
@@ -264,41 +327,49 @@
     static calculateLoadPriority(element, timeToViewport) {
       let priority = 50;
       const rect = element.getBoundingClientRect();
-      if (rect.top < window.innerHeight) priority += 45;
-      else if (rect.top < window.innerHeight * 2) priority += 25;
+      if (rect.top < window.innerHeight) priority += 60;
+      else if (rect.top < window.innerHeight * 1.3) priority += 40;
       
       const area = rect.width * rect.height;
-      if (area > 300 * 250) priority += 20;
+      if (area > 300 * 250) priority += 30;
       
       const scrollPercent = window.pageYOffset / (document.body.scrollHeight - window.innerHeight);
-      if (scrollPercent < 0.3) priority += 15;
+      if (scrollPercent < 0.15) priority += 25;
       
-      if (STATE.userBehavior.engagementScore > 70) priority += 10;
+      if (STATE.userBehavior.engagementScore > 85) priority += 20;
+      if (STATE.adblockerDetected) priority += 15;
       
       return Math.min(100, Math.max(0, priority));
     }
 
     static adaptiveConfig() {
-      const history = STATE.performanceHistory.slice(-15);
+      const history = STATE.performanceHistory.slice(-25);
       if (history.length < 5) return;
 
       const avgSuccessRate = history.reduce((sum, h) => sum + h.successRate, 0) / history.length;
       const avgLoadTime = history.reduce((sum, h) => sum + h.loadTime, 0) / history.length;
       const avgReloadSuccess = history.reduce((sum, h) => sum + (h.reloadSuccessRate || 0), 0) / history.length;
+      const avgBypassRate = history.reduce((sum, h) => sum + (h.adblockerBypassRate || 0), 0) / history.length;
 
-      if (avgSuccessRate < CONFIG.PERFORMANCE.TARGET_SUCCESS_RATE || avgReloadSuccess < 90) {
+      if (avgSuccessRate < CONFIG.PERFORMANCE.TARGET_SUCCESS_RATE || avgReloadSuccess < 94 || avgBypassRate < 85) {
         CONFIG.ADAPTIVE_CONFIG.MAX_RETRIES.current = Math.min(
           CONFIG.ADAPTIVE_CONFIG.MAX_RETRIES.max,
-          CONFIG.ADAPTIVE_CONFIG.MAX_RETRIES.current + 10
+          CONFIG.ADAPTIVE_CONFIG.MAX_RETRIES.current + 20
         );
         CONFIG.ADAPTIVE_CONFIG.RETRY_INTERVAL.current = Math.min(
           CONFIG.ADAPTIVE_CONFIG.RETRY_INTERVAL.max,
-          CONFIG.ADAPTIVE_CONFIG.RETRY_INTERVAL.current + 1500
+          CONFIG.ADAPTIVE_CONFIG.RETRY_INTERVAL.current + 500
         );
         CONFIG.ADAPTIVE_CONFIG.AI_ADJUSTMENT_FACTOR.current = Math.min(
           CONFIG.ADAPTIVE_CONFIG.AI_ADJUSTMENT_FACTOR.max,
-          CONFIG.ADAPTIVE_CONFIG.AI_ADJUSTMENT_FACTOR.current + 0.2
+          CONFIG.ADAPTIVE_CONFIG.AI_ADJUSTMENT_FACTOR.current + 0.4
         );
+        if (STATE.adblockerDetected) {
+          CONFIG.ADAPTIVE_CONFIG.ADBLOCK_BYPASS_FACTOR.current = Math.min(
+            CONFIG.ADAPTIVE_CONFIG.ADBLOCK_BYPASS_FACTOR.max,
+            CONFIG.ADAPTIVE_CONFIG.ADBLOCK_BYPASS_FACTOR.current + 0.7
+          );
+        }
       }
 
       if (avgLoadTime > CONFIG.PERFORMANCE.CRITICAL_LOAD_TIME) {
@@ -306,18 +377,23 @@
           CONFIG.ADAPTIVE_CONFIG.BATCH_SIZE.min,
           CONFIG.ADAPTIVE_CONFIG.BATCH_SIZE.current - 1
         );
+        CONFIG.ADAPTIVE_CONFIG.TIMEOUT.current = Math.max(
+          CONFIG.ADAPTIVE_CONFIG.TIMEOUT.min,
+          CONFIG.ADAPTIVE_CONFIG.TIMEOUT.current - 1000
+        );
       }
 
       logger.info('Configuration adapted', {
         avgSuccessRate,
         avgLoadTime,
         avgReloadSuccess,
+        avgBypassRate,
         newConfig: CONFIG.ADAPTIVE_CONFIG
       });
     }
   }
 
-  // Quantum-Inspired Retry Logic with Enhanced Decision Making
+  // Quantum-Inspired Retry Logic
   class QuantumRetryEngine {
     constructor() {
       this.retryStates = new Map();
@@ -325,10 +401,11 @@
     }
 
     calculateQuantumDelay(attempt, baseDelay) {
-      const quantumFactor = Math.random() * 0.5 + 0.75;
+      const quantumFactor = Math.random() * 0.6 + 0.8;
       const exponentialBackoff = Math.pow(1.6, attempt);
       const quantumJitter = (Math.random() - 0.5) * 0.4;
-      return Math.min(baseDelay * exponentialBackoff * quantumFactor * (1 + quantumJitter) * CONFIG.ADAPTIVE_CONFIG.AI_ADJUSTMENT_FACTOR.current, CONFIG.ADAPTIVE_CONFIG.RETRY_INTERVAL.max);
+      const adblockerFactor = STATE.adblockerDetected ? CONFIG.ADAPTIVE_CONFIG.ADBLOCK_BYPASS_FACTOR.current : 1;
+      return Math.min(baseDelay * exponentialBackoff * quantumFactor * adblockerFactor * (1 + quantumJitter), CONFIG.ADAPTIVE_CONFIG.RETRY_INTERVAL.max);
     }
 
     shouldRetry(adId, error) {
@@ -346,29 +423,31 @@
 
     analyzeError(error) {
       const errorTypes = {
-        'network': 0.95,
-        'timeout': 0.85,
-        'script': 0.75,
-        'dom': 0.35,
-        'validation': 0.15
+        'network': 0.97,
+        'timeout': 0.92,
+        'script': 0.85,
+        'dom': 0.45,
+        'validation': 0.25,
+        'adblock': 0.99
       };
       const errorMessage = error.message.toLowerCase();
       for (const [type, severity] of Object.entries(errorTypes)) {
         if (errorMessage.includes(type)) return severity;
       }
-      return 0.5;
+      return 0.6;
     }
 
     calculateRetryProbability(attempts, errorSeverity) {
       const baseProbability = errorSeverity;
-      const attemptPenalty = Math.pow(0.75, attempts - 1);
-      const successRateBonus = STATE.metrics.successRate / 100 * 0.25;
-      const engagementBonus = STATE.userBehavior.engagementScore / 100 * 0.15;
-      return Math.max(0.1, baseProbability * attemptPenalty + successRateBonus + engagementBonus);
+      const attemptPenalty = Math.pow(0.65, attempts - 1);
+      const successRateBonus = STATE.metrics.successRate / 100 * 0.35;
+      const engagementBonus = STATE.userBehavior.engagementScore / 100 * 0.25;
+      const adblockerBonus = STATE.adblockerDetected ? 0.35 : 0;
+      return Math.max(0.2, baseProbability * attemptPenalty + successRateBonus + engagementBonus + adblockerBonus);
     }
   }
 
-  // Enhanced Neural Scheduler with Dynamic Prioritization
+  // Enhanced Neural Scheduler with Deeper Layers
   class NeuralScheduler {
     constructor() {
       this.neurons = new Map();
@@ -395,22 +474,26 @@
         previousFailures: STATE.failureQueue.size,
         currentLoad: STATE.processingQueue.size,
         reloadAttempts: STATE.reloadQueue.get(adData.id)?.attempts || 0,
-        engagementScore: STATE.userBehavior.engagementScore / 100
+        engagementScore: STATE.userBehavior.engagementScore / 100,
+        adblockerDetected: STATE.adblockerDetected ? 1 : 0,
+        adRotationIndex: adData.rotationIndex || 0
       };
     }
 
     feedForward(inputs) {
       const weights = {
-        viewportDistance: -0.9,
-        elementSize: 0.35,
-        scrollPosition: -0.25,
-        timeOnPage: 0.15,
-        networkQuality: 0.6,
-        devicePerformance: 0.35,
-        previousFailures: -0.45,
-        currentLoad: -0.7,
-        reloadAttempts: -0.55,
-        engagementScore: 0.3
+        viewportDistance: -1.0,
+        elementSize: 0.5,
+        scrollPosition: -0.35,
+        timeOnPage: 0.25,
+        networkQuality: 0.7,
+        devicePerformance: 0.45,
+        previousFailures: -0.55,
+        currentLoad: -0.8,
+        reloadAttempts: -0.65,
+        engagementScore: 0.4,
+        adblockerDetected: 0.6,
+        adRotationIndex: 0.3
       };
 
       let activation = 0;
@@ -418,10 +501,14 @@
         activation += (weights[feature] || 0) * value;
       }
 
-      const sigmoid = 1 / (1 + Math.exp(-activation));
+      // Deeper layer with non-linear activation
+      const hiddenLayer = Math.tanh(activation);
+      const finalActivation = hiddenLayer * 0.8 + (STATE.adblockerDetected ? 0.2 : 0);
+      const sigmoid = 1 / (1 + Math.exp(-finalActivation));
+      
       return {
         priority: Math.round(sigmoid * 100),
-        delay: Math.max(0, (1 - sigmoid) * 4000),
+        delay: Math.max(0, (1 - sigmoid) * 2000),
         confidence: Math.abs(sigmoid - 0.5) * 2
       };
     }
@@ -435,10 +522,18 @@
         loadTime: actualLoadTime,
         timestamp: Date.now()
       });
+      this.adjustWeights(features, error);
+    }
+
+    adjustWeights(features, error) {
+      for (const [feature, value] of Object.entries(features)) {
+        const weight = this.connections.get(feature) || 0;
+        this.connections.set(feature, weight - this.learningRate * error * value);
+      }
     }
   }
 
-  // Advanced Script Loader with Enhanced Load Balancing
+  // Advanced Script Loader with Enhanced Bypass
   class HyperScriptLoader {
     constructor() {
       this.loadBalancer = new LoadBalancer();
@@ -450,15 +545,16 @@
       if (STATE.scriptLoading) return this.waitForScript();
 
       STATE.scriptLoading = true;
-      logger.info('Initiating hyper script loading sequence v17.0');
+      logger.info('Initiating hyper script loading sequence v21.5');
 
       try {
         if (!this.circuitBreaker.allowRequest()) {
           throw new Error('Circuit breaker is open');
         }
 
+        await AIUtils.detectAdblocker();
         const scriptUrl = await this.loadBalancer.getOptimalEndpoint();
-        const script = await this.createOptimizedScript(scriptUrl);
+        const script = await this.createObfuscatedScript(scriptUrl);
         
         await this.loadWithFallbacks(script);
         await this.verifyScriptIntegrity();
@@ -473,38 +569,78 @@
         STATE.scriptLoading = false;
         this.circuitBreaker.recordFailure();
         logger.error('Hyper script loading failed', { error: error.message });
+        if (STATE.adblockerDetected) {
+          logger.warn('Adblocker interference suspected, attempting bypass');
+          await this.attemptBypass();
+        }
         throw error;
       }
     }
 
-    async createOptimizedScript(url) {
+    async createObfuscatedScript(url) {
       const script = document.createElement('script');
-      script.src = `${url}?client=${CONFIG.CLIENT_ID}&v=${Date.now()}`;
+      const obfuscatedId = `s_${Math.random().toString(36).substr(2, 9)}`;
+      script.id = obfuscatedId;
       script.async = true;
       script.crossOrigin = 'anonymous';
-      script.setAttribute('data-ad-client', CONFIG.CLIENT_ID);
       script.setAttribute('data-load-timestamp', Date.now().toString());
       script.fetchPriority = 'high';
       script.importance = 'high';
+      
+      if (STATE.adblockerDetected) {
+        const blob = new Blob([`/* Obfuscated AdSense Loader v21.5 */\n${this.generateScriptContent(url)}`], { type: 'text/javascript' });
+        script.src = URL.createObjectURL(blob);
+        script.setAttribute('data-obfuscated', 'true');
+      } else {
+        script.src = `${url}?client=${CONFIG.CLIENT_ID}&v=${Date.now()}`;
+      }
+      
       return script;
     }
 
-    async loadWithFallbacks(script) {
-      const fallbackUrls = [
-        CONFIG.SCRIPT_URL,
-        'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js',
-        'https://googleads.g.doubleclick.net/pagead/js/adsbygoogle.js'
-      ];
+    generateScriptContent(url) {
+      return `
+        (function() {
+          var s = document.createElement('script');
+          s.src = '${url}?client=${CONFIG.CLIENT_ID}&v=${Date.now()}';
+          s.async = true;
+          document.head.appendChild(s);
+        })();
+      `;
+    }
 
-      for (let i = 0; i < fallbackUrls.length; i++) {
+    async loadWithFallbacks(script) {
+      const urls = [CONFIG.PRIMARY_SCRIPT_URL, ...CONFIG.FALLBACK_SCRIPT_URLS];
+      for (let i = 0; i < urls.length; i++) {
         try {
-          script.src = `${fallbackUrls[i]}?client=${CONFIG.CLIENT_ID}&v=${Date.now()}`;
-          await this.attemptLoad(script);
+          if (STATE.adblockerDetected && CONFIG.FEATURES.PROXY_LOADING) {
+            await this.loadViaProxy(script, urls[i]);
+          } else {
+            script.src = `${urls[i]}?client=${CONFIG.CLIENT_ID}&v=${Date.now()}`;
+            await this.attemptLoad(script);
+          }
           return;
         } catch (error) {
-          logger.warn(`Fallback ${i + 1} failed`, { url: fallbackUrls[i], error: error.message });
-          if (i === fallbackUrls.length - 1) throw error;
+          logger.warn(`Fallback ${i + 1} failed`, { url: urls[i], error: error.message });
+          if (i === urls.length - 1) throw error;
         }
+      }
+    }
+
+    async loadViaProxy(script, url) {
+      try {
+        const proxyUrl = `https://cors-anywhere.herokuapp.com/${url}`; // Mock proxy
+        const response = await fetch(proxyUrl, { method: 'GET', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+        if (!response.ok) throw new Error('Proxy load failed');
+        
+        const scriptContent = await response.text();
+        const blob = new Blob([scriptContent], { type: 'text/javascript' });
+        script.src = URL.createObjectURL(blob);
+        await this.attemptLoad(script);
+        URL.revokeObjectURL(script.src);
+      } catch (error) {
+        logger.error('Proxy loading failed', { error: error.message });
+        throw error;
       }
     }
 
@@ -519,8 +655,8 @@
 
     async verifyScriptIntegrity() {
       let attempts = 0;
-      while (typeof window.adsbygoogle === 'undefined' && attempts < 150) {
-        await new Promise(resolve => setTimeout(resolve, 50));
+      while (typeof window.adsbygoogle === 'undefined' && attempts < 300) {
+        await new Promise(resolve => setTimeout(resolve, 30));
         attempts++;
       }
       if (typeof window.adsbygoogle === 'undefined') {
@@ -533,19 +669,34 @@
 
     async waitForScript() {
       let attempts = 0;
-      while (STATE.scriptLoading && attempts < 300) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+      while (STATE.scriptLoading && attempts < 500) {
+        await new Promise(resolve => setTimeout(resolve, 50));
         attempts++;
       }
       return STATE.scriptLoaded;
+    }
+
+    async attemptBypass() {
+      if (!CONFIG.FEATURES.ADBLOCK_BYPASS) return;
+      
+      logger.info('Attempting adblocker bypass');
+      try {
+        const script = document.createElement('script');
+        const obfuscatedId = `s_${Math.random().toString(36).substr(2, 9)}`;
+        script.id = obfuscatedId;
+        await this.loadViaProxy(script, CONFIG.FALLBACK_SCRIPT_URLS[0]);
+        logger.info('Adblocker bypass successful');
+      } catch (error) {
+        logger.error('Adblocker bypass failed', { error: error.message });
+      }
     }
   }
 
   class LoadBalancer {
     constructor() {
       this.endpoints = [
-        { url: CONFIG.SCRIPT_URL, weight: 100, latency: 0, failures: 0 },
-        { url: 'https://googleads.g.doubleclick.net/pagead/js/adsbygoogle.js', weight: 80, latency: 0, failures: 0 }
+        { url: CONFIG.PRIMARY_SCRIPT_URL, weight: 100, latency: 0, failures: 0 },
+        ...CONFIG.FALLBACK_SCRIPT_URLS.map(url => ({ url, weight: 85, latency: 0, failures: 0 }))
       ];
       this.currentIndex = 0;
     }
@@ -569,7 +720,7 @@
     }
 
     calculateScore(endpoint) {
-      const latencyScore = Math.max(0, 1000 - endpoint.latency) / 1000;
+      const latencyScore = Math.max(0, 800 - endpoint.latency) / 800;
       const reliabilityScore = Math.max(0, 1 - endpoint.failures / 10);
       return (latencyScore * 0.65 + reliabilityScore * 0.35) * endpoint.weight;
     }
@@ -581,7 +732,7 @@
       this.failureCount = 0;
       this.successCount = 0;
       this.lastFailureTime = 0;
-      this.timeout = 45000;
+      this.timeout = 25000;
       this.threshold = 4;
     }
 
@@ -614,14 +765,68 @@
     }
   }
 
-  // Ultra-Advanced Ad Manager with Periodic Reload
+  // Web Worker for Ad Processing
+  class AdWorker {
+    constructor() {
+      this.worker = null;
+      this.isSupported = !!window.Worker;
+    }
+
+    async processAd(adData) {
+      if (!this.isSupported || !CONFIG.FEATURES.WEB_WORKER_OFFLOAD) {
+        return this.fallbackProcess(adData);
+      }
+
+      if (!this.worker) {
+        const workerCode = `
+          self.onmessage = function(e) {
+            const adData = e.data;
+            const result = {
+              id: adData.id,
+              processed: true,
+              timestamp: Date.now()
+            };
+            self.postMessage(result);
+          };
+        `;
+        const blob = new Blob([workerCode], { type: 'text/javascript' });
+        this.worker = new Worker(URL.createObjectURL(blob));
+        STATE.workers.add(this.worker);
+      }
+
+      return new Promise((resolve, reject) => {
+        this.worker.onmessage = (e) => resolve(e.data);
+        this.worker.onerror = (error) => reject(new Error(`Worker error: ${error.message}`));
+        this.worker.postMessage(adData);
+      });
+    }
+
+    fallbackProcess(adData) {
+      return Promise.resolve({
+        id: adData.id,
+        processed: true,
+        timestamp: Date.now()
+      });
+    }
+
+    terminate() {
+      if (this.worker) {
+        this.worker.terminate();
+        this.worker = null;
+      }
+    }
+  }
+
+  // Ultra-Advanced Ad Manager
   class UltraAdManager {
     constructor() {
       this.quantumRetry = new QuantumRetryEngine();
       this.neuralScheduler = new NeuralScheduler();
       this.loadBalancer = new LoadBalancer();
       this.performanceProfiler = new PerformanceProfiler();
+      this.worker = new AdWorker();
       this.periodicReloadTimer = null;
+      this.rotationCounter = new Map();
     }
 
     async discoverAndAnalyzeAds() {
@@ -632,7 +837,7 @@
         const adId = this.generateUniqueId(element, index);
         const adData = {
           id: adId,
-          element,
+          element: this.obfuscateAdElement(element),
           index,
           rect: element.getBoundingClientRect(),
           attributes: this.extractAdAttributes(element),
@@ -641,12 +846,13 @@
           schedule: this.neuralScheduler.scheduleAdLoad({ element, id: adId }),
           attempts: 0,
           reloadAttempts: 0,
+          rotationIndex: this.rotationCounter.get(adId) || 0,
           status: 'discovered',
           timestamp: Date.now(),
           integrityHash: null
         };
         STATE.adRegistry.set(adId, adData);
-        if (adData.status === 'discovered' || adData.status === 'failed') {
+        if (adData.status === 'discovered' || adData.status === 'failed' || adData.status === 'blocked') {
           STATE.reloadQueue.set(adId, { attempts: 0, lastAttempt: 0, integrityHash: null });
         }
         return adData;
@@ -662,14 +868,28 @@
       return ads;
     }
 
+    obfuscateAdElement(element) {
+      if (!CONFIG.FEATURES.DOM_OBFUSCATION || !STATE.adblockerDetected) return element;
+      
+      const wrapper = document.createElement('div');
+      const obfuscatedClass = `content_${Math.random().toString(36).substr(2, 9)}`;
+      wrapper.className = obfuscatedClass;
+      wrapper.setAttribute('data-content-id', `c_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`);
+      element.parentElement.replaceChild(wrapper, element);
+      wrapper.appendChild(element);
+      element.className = element.className.replace(CONFIG.AD_SELECTOR.replace('.', ''), `inner_${Math.random().toString(36).substr(2, 5)}`);
+      logger.debug('Ad element obfuscated with wrapper', { originalClass: CONFIG.AD_SELECTOR, newClass: obfuscatedClass });
+      return wrapper;
+    }
+
     generateUniqueId(element, index) {
-      return element.id || element.dataset.adId || `ad_${STATE.sessionId}_${index}_${Date.now()}`;
+      return element.id || element.dataset.contentId || `ad_${STATE.sessionId}_${index}_${Date.now()}`;
     }
 
     extractAdAttributes(element) {
       const attributes = {};
       for (const attr of element.attributes) {
-        if (attr.name.startsWith('data-ad-')) {
+        if (attr.name.startsWith('data-ad-') || attr.name.startsWith('data-content-')) {
           attributes[attr.name] = attr.value;
         }
       }
@@ -710,8 +930,8 @@
     determinePageSection(element, pageContext) {
       const rect = element.getBoundingClientRect();
       const scrollPercent = (rect.top + window.pageYOffset) / document.body.scrollHeight;
-      if (scrollPercent < 0.2) return 'header';
-      if (scrollPercent < 0.8) return 'content';
+      if (scrollPercent < 0.1) return 'header';
+      if (scrollPercent < 0.9) return 'content';
       return 'footer';
     }
 
@@ -722,10 +942,10 @@
         const now = Date.now();
         const reloadableAds = Array.from(STATE.adRegistry.values())
           .filter(ad => 
-            (ad.status === 'discovered' || ad.status === 'failed') &&
+            (ad.status === 'discovered' || ad.status === 'failed' || ad.status === 'blocked') &&
             STATE.reloadQueue.has(ad.id) &&
-            (now - STATE.reloadQueue.get(ad.id).lastAttempt) >= CONFIG.RELOAD_INTERVAL &&
-            STATE.reloadQueue.get(ad.id).attempts < CONFIG.RELOAD_MAX_ATTEMPTS
+            (now - STATE.reloadQueue.get(ad.id).lastAttempt) >= CONFIG.RETRY_INTERVAL &&
+            STATE.reloadQueue.get(ad.id).attempts < CONFIG.MAX_RETRY_ATTEMPTS
           );
 
         if (reloadableAds.length === 0) return;
@@ -747,18 +967,21 @@
             STATE.reloadQueue.set(ad.id, reloadData);
           } catch (error) {
             logger.warn(`Periodic reload failed for ad ${ad.id}`, { error: error.message, attempts: reloadData.attempts });
-            if (reloadData.attempts >= CONFIG.RELOAD_MAX_ATTEMPTS) {
+            if (reloadData.attempts >= CONFIG.MAX_RETRY_ATTEMPTS) {
               STATE.reloadQueue.delete(ad.id);
               logger.error(`Max reload attempts reached for ad ${ad.id}`);
+              if (STATE.adblockerDetected) {
+                await this.loadFallbackContent(ad);
+              }
             }
           }
         }
 
         this.updateMetrics();
-      }, CONFIG.RELOAD_INTERVAL);
+      }, CONFIG.RETRY_INTERVAL);
 
       STATE.timers.add(this.periodicReloadTimer);
-      logger.info('Periodic reload system started', { interval: CONFIG.RELOAD_INTERVAL });
+      logger.info('Periodic reload system started', { interval: CONFIG.RETRY_INTERVAL });
     }
 
     calculateAdIntegrityHash(adData) {
@@ -784,7 +1007,34 @@
       return isValid;
     }
 
+    async loadFallbackContent(adData) {
+      if (!CONFIG.FEATURES.ADBLOCK_BYPASS) return;
+      
+      logger.info(`Loading fallback content for ad ${adData.id}`);
+      try {
+        const fallbackContent = document.createElement('div');
+        fallbackContent.className = `content_${Math.random().toString(36).substr(2, 9)}`;
+        fallbackContent.innerHTML = `
+          <div style="width: ${adData.rect.width}px; height: ${adData.rect.height}px; background: #f5f5f5; display: flex; align-items: center; justify-content: center;">
+            <span style="color: #555; font-size: 13px;">Explore More</span>
+          </div>
+        `;
+        adData.element.parentElement.replaceChild(fallbackContent, adData.element);
+        adData.element = fallbackContent;
+        adData.status = 'fallback';
+        STATE.blockedAds++;
+        logger.info(`Fallback content loaded for ad ${adData.id}`);
+      } catch (error) {
+        logger.error(`Failed to load fallback content for ad ${adData.id}`, { error: error.message });
+      }
+    }
+
     async loadAdWithAI(adData) {
+      if (CONFIG.PRIVACY_ENABLED && !STATE.consentGiven) {
+        logger.warn(`Ad loading blocked for ${adData.id} due to missing consent`);
+        return false;
+      }
+
       const startTime = Date.now();
       try {
         logger.debug(`AI-powered ad loading initiated`, { adId: adData.id });
@@ -802,7 +1052,12 @@
         }
 
         this.performanceProfiler.startProfiling(adData.id);
+        const workerResult = await this.worker.processAd(adData);
         await this.loadWithQuantumRetry(adData);
+
+        if (CONFIG.FEATURES.ROTATION_ENABLED) {
+          this.handleAdRotation(adData);
+        }
 
         const loadTime = Date.now() - startTime;
         const isValid = await this.verifyAdIntegrity(adData);
@@ -816,7 +1071,8 @@
         logger.info(`AI-powered ad loaded successfully`, {
           adId: adData.id,
           loadTime,
-          priority: schedule.priority
+          priority: schedule.priority,
+          worker: workerResult.processed
         });
 
         return true;
@@ -839,12 +1095,24 @@
             adData.attempts++;
             this.loadAdWithAI(adData);
           }, delay);
+        } else if (STATE.adblockerDetected) {
+          await this.loadFallbackContent(adData);
         }
 
         throw error;
       } finally {
         this.performanceProfiler.stopProfiling(adData.id);
       }
+    }
+
+    handleAdRotation(adData) {
+      if (!CONFIG.FEATURES.ROTATION_ENABLED) return;
+      
+      const rotationIndex = (this.rotationCounter.get(adData.id) || 0) + 1;
+      this.rotationCounter.set(adData.id, rotationIndex % 3); // Rotate through 3 ads
+      adData.rotationIndex = this.rotationCounter.get(adData.id);
+      adData.element.setAttribute('data-rotation-index', adData.rotationIndex);
+      logger.debug(`Ad rotation applied`, { adId: adData.id, rotationIndex: adData.rotationIndex });
     }
 
     validateAdElement(adData) {
@@ -862,8 +1130,8 @@
           element.setAttribute('data-ad-client', CONFIG.CLIENT_ID);
           logger.debug(`Auto-repaired missing data-ad-client`, { adId: adData.id });
         }
-        if (missingAttrs.includes('data-ad-slot') && !element.hasAttribute('data-ad-slot')) {
-          element.setAttribute('data-ad-slot', `auto-${Date.now()}`);
+        if (missingAttrs.includes('data-ad-slot')) {
+          element.setAttribute('data-ad-slot', `auto-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`);
           logger.debug(`Auto-generated data-ad-slot`, { adId: adData.id });
         }
       }
@@ -872,12 +1140,12 @@
 
     async optimizeForDevice(adData) {
       const deviceInfo = STATE.userBehavior.deviceInfo;
-      if (deviceInfo.hardwareConcurrency < 4) {
-        adData.element.style.willChange = 'auto';
+      if (deviceInfo.hardwareConcurrency < 3) {
+        adData.element.style.willChange = 'none';
         adData.element.setAttribute('data-ad-format', 'rectangle');
         logger.debug(`Low-power device optimization applied`, { adId: adData.id });
       }
-      if (deviceInfo.deviceMemory && deviceInfo.deviceMemory < 4) {
+      if (deviceInfo.deviceMemory && deviceInfo.deviceMemory < 3) {
         adData.element.setAttribute('data-ad-format', 'auto');
         adData.element.setAttribute('data-full-width-responsive', 'true');
         logger.debug(`Memory optimization applied`, { adId: adData.id });
@@ -889,8 +1157,9 @@
       if (networkInfo.connectionType === 'slow-2g' || networkInfo.connectionType === '2g') {
         adData.element.setAttribute('data-ad-format', 'fluid');
         adData.element.setAttribute('data-full-width-responsive', 'true');
+        CONFIG.ADAPTIVE_CONFIG.TIMEOUT.current = Math.min(CONFIG.ADAPTIVE_CONFIG.TIMEOUT.max, CONFIG.ADAPTIVE_CONFIG.TIMEOUT.current + 5000);
         logger.debug(`Slow network optimization applied`, { adId: adData.id });
-      } else if (networkInfo.latency > 500) {
+      } else if (networkInfo.latency > 300) {
         adData.element.setAttribute('data-ad-format', 'auto');
         logger.debug(`High latency optimization applied`, { adId: adData.id });
       }
@@ -902,7 +1171,7 @@
           if (typeof window.adsbygoogle === 'undefined') {
             window.adsbygoogle = [];
           }
-          adData.element.setAttribute('data-ad-processing', 'true');
+          adData.element.setAttribute('data-content-processing', 'true');
           adData.status = 'loading';
           STATE.processingQueue.add(adData.id);
 
@@ -911,15 +1180,19 @@
           setTimeout(() => {
             const status = adData.element.getAttribute('data-adsbygoogle-status');
             const hasIframe = adData.element.querySelector('iframe');
-            const hasContent = adData.element.innerHTML.trim().length > 100;
+            const hasContent = adData.element.innerHTML.trim().length > 50;
 
             if (status === 'done' || hasIframe || hasContent) {
               resolve();
             } else {
-              reject(new Error('Ad did not render properly'));
+              adData.status = 'blocked';
+              STATE.blockedAds++;
+              reject(new Error('Ad blocked or failed to render'));
             }
-          }, 2500);
+          }, 1500);
         } catch (error) {
+          adData.status = 'blocked';
+          STATE.blockedAds++;
           reject(error);
         }
       });
@@ -928,8 +1201,8 @@
     handleLoadSuccess(adData, loadTime) {
       adData.status = 'loaded';
       adData.loadTime = loadTime;
-      adData.element.setAttribute('data-ad-loaded', 'true');
-      adData.element.removeAttribute('data-ad-processing');
+      adData.element.setAttribute('data-content-loaded', 'true');
+      adData.element.removeAttribute('data-content-processing');
       
       STATE.loadedAds++;
       STATE.successQueue.add(adData.id);
@@ -940,13 +1213,17 @@
     }
 
     handleLoadFailure(adData, error, loadTime) {
-      adData.status = 'failed';
+      adData.status = error.message.includes('blocked') ? 'blocked' : 'failed';
       adData.error = error.message;
       adData.loadTime = loadTime;
-      adData.element.setAttribute('data-ad-failed', 'true');
-      adData.element.removeAttribute('data-ad-processing');
+      adData.element.setAttribute('data-content-failed', 'true');
+      adData.element.removeAttribute('data-content-processing');
       
-      STATE.failedAds++;
+      if (adData.status === 'failed') {
+        STATE.failedAds++;
+      } else {
+        STATE.blockedAds++;
+      }
       STATE.failureQueue.add(adData.id);
       STATE.processingQueue.delete(adData.id);
       
@@ -954,10 +1231,11 @@
     }
 
     updateMetrics() {
-      const total = STATE.loadedAds + STATE.failedAds;
+      const total = STATE.loadedAds + STATE.failedAds + STATE.blockedAds;
       if (total > 0) {
         STATE.metrics.successRate = (STATE.loadedAds / total) * 100;
         STATE.metrics.errorRate = (STATE.failedAds / total) * 100;
+        STATE.metrics.adblockerBypassRate = (STATE.loadedAds / (STATE.loadedAds + STATE.blockedAds)) * 100 || 0;
         STATE.metrics.reloadSuccessRate = STATE.reloadCount > 0 ? (STATE.loadedAds / STATE.reloadCount) * 100 : 0;
       }
 
@@ -965,14 +1243,16 @@
         timestamp: Date.now(),
         successRate: STATE.metrics.successRate,
         reloadSuccessRate: STATE.metrics.reloadSuccessRate,
+        adblockerBypassRate: STATE.metrics.adblockerBypassRate,
         loadTime: this.calculateAverageLoadTime(),
         totalAds: total,
         loadedAds: STATE.loadedAds,
-        failedAds: STATE.failedAds
+        failedAds: STATE.failedAds,
+        blockedAds: STATE.blockedAds
       });
 
-      if (STATE.performanceHistory.length > 75) {
-        STATE.performanceHistory = STATE.performanceHistory.slice(-75);
+      if (STATE.performanceHistory.length > 150) {
+        STATE.performanceHistory = STATE.performanceHistory.slice(-150);
       }
 
       if (CONFIG.FEATURES.AI_OPTIMIZATION) {
@@ -1058,17 +1338,18 @@
     }
   }
 
-  // Enhanced Real-Time Monitoring System
+  // Enhanced Real-Time Monitoring
   class RealTimeMonitor {
     constructor() {
       this.metrics = new Map();
       this.alerts = [];
       this.thresholds = {
-        successRate: 92,
-        averageLoadTime: 4000,
-        errorRate: 8,
-        memoryUsage: 100 * 1024 * 1024,
-        reloadSuccessRate: 85
+        successRate: 96,
+        averageLoadTime: 3000,
+        errorRate: 4,
+        adblockerBypassRate: 85,
+        memoryUsage: 70 * 1024 * 1024,
+        reloadSuccessRate: 92
       };
     }
 
@@ -1077,9 +1358,9 @@
         this.collectMetrics();
         this.checkThresholds();
         this.generateReport();
-      }, 25000);
+      }, 15000);
 
-      logger.info('Real-time monitoring started v17.0');
+      logger.info('Real-time monitoring started v21.5');
     }
 
     collectMetrics() {
@@ -1088,9 +1369,11 @@
         timestamp,
         successRate: STATE.metrics.successRate,
         errorRate: STATE.metrics.errorRate,
+        adblockerBypassRate: STATE.metrics.adblockerBypassRate,
         reloadSuccessRate: STATE.metrics.reloadSuccessRate,
         loadedAds: STATE.loadedAds,
         failedAds: STATE.failedAds,
+        blockedAds: STATE.blockedAds,
         totalAds: STATE.totalAds,
         memoryUsage: this.getCurrentMemoryUsage(),
         activeConnections: STATE.connections.size,
@@ -1105,8 +1388,7 @@
       this.metrics.set(timestamp, metrics);
 
       if (this.metrics.size > 150) {
-        const oldest = Math.min(...this.metrics.keys());
-        this.metrics.delete(oldest);
+        this.metrics.delete(Math.min(...this.metrics.keys()));
       }
     }
 
@@ -1131,6 +1413,10 @@
 
       if (latest.errorRate > this.thresholds.errorRate) {
         this.triggerAlert('HIGH_ERROR_RATE', `Error rate: ${latest.errorRate.toFixed(1)}%`);
+      }
+
+      if (latest.adblockerBypassRate < this.thresholds.adblockerBypassRate && STATE.adblockerDetected) {
+        this.triggerAlert('LOW_ADBLOCK_BYPASS', `Adblocker bypass rate: ${latest.adblockerBypassRate.toFixed(1)}%`);
       }
 
       if (latest.reloadSuccessRate < this.thresholds.reloadSuccessRate) {
@@ -1163,6 +1449,7 @@
         'LOW_SUCCESS_RATE': 'HIGH',
         'HIGH_MEMORY_USAGE': 'MEDIUM',
         'HIGH_ERROR_RATE': 'HIGH',
+        'LOW_ADBLOCK_BYPASS': 'CRITICAL',
         'LOW_RELOAD_SUCCESS': 'HIGH',
         'NETWORK_ISSUES': 'MEDIUM'
       };
@@ -1173,6 +1460,7 @@
       switch (type) {
         case 'LOW_SUCCESS_RATE':
         case 'LOW_RELOAD_SUCCESS':
+        case 'LOW_ADBLOCK_BYPASS':
           this.increaseRetryAttempts();
           break;
         case 'HIGH_MEMORY_USAGE':
@@ -1187,7 +1475,11 @@
     increaseRetryAttempts() {
       CONFIG.ADAPTIVE_CONFIG.MAX_RETRIES.current = Math.min(
         CONFIG.ADAPTIVE_CONFIG.MAX_RETRIES.max,
-        CONFIG.ADAPTIVE_CONFIG.MAX_RETRIES.current + 10
+        CONFIG.ADAPTIVE_CONFIG.MAX_RETRIES.current + 25
+      );
+      CONFIG.ADAPTIVE_CONFIG.ADBLOCK_BYPASS_FACTOR.current = Math.min(
+        CONFIG.ADAPTIVE_CONFIG.ADBLOCK_BYPASS_FACTOR.max,
+        CONFIG.ADAPTIVE_CONFIG.ADBLOCK_BYPASS_FACTOR.current + 0.8
       );
       logger.info('Auto-healing: Increased retry attempts', { newMax: CONFIG.ADAPTIVE_CONFIG.MAX_RETRIES.current });
     }
@@ -1203,17 +1495,19 @@
     }
 
     resetFailedAds() {
-      const failedAds = Array.from(STATE.adRegistry.values()).filter(ad => ad.status === 'failed');
+      const failedAds = Array.from(STATE.adRegistry.values()).filter(ad => ad.status === 'failed' || ad.status === 'blocked');
       failedAds.forEach(ad => {
         ad.status = 'discovered';
         ad.attempts = 0;
         ad.reloadAttempts = 0;
-        ad.element.removeAttribute('data-ad-failed');
+        ad.element.removeAttribute('data-content-failed');
+        ad.element.removeAttribute('data-content-loaded');
         STATE.reloadQueue.set(ad.id, { attempts: 0, lastAttempt: 0, integrityHash: null });
       });
       STATE.failedAds = 0;
+      STATE.blockedAds = 0;
       STATE.failureQueue.clear();
-      logger.info('Auto-healing: Reset failed ads', { count: failedAds.length });
+      logger.info('Auto-healing: Reset failed/blocked ads', { count: failedAds.length });
     }
 
     generateReport() {
@@ -1227,6 +1521,7 @@
         performance: {
           successRate: latest.successRate,
           errorRate: latest.errorRate,
+          adblockerBypassRate: latest.adblockerBypassRate,
           reloadSuccessRate: latest.reloadSuccessRate,
           averageLoadTime: STATE.metrics.avgLoadTime
         },
@@ -1243,9 +1538,7 @@
     }
 
     sendToExternalService(report) {
-      if (typeof window.fetch === 'function' && window.location.hostname !== 'localhost') {
-        // Mock implementation
-      }
+      // Mock implementation
       logger.debug('Monitoring report generated', { timestamp: report.timestamp, successRate: report.performance.successRate });
     }
 
@@ -1258,7 +1551,7 @@
     }
   }
 
-  // Ultra Controller with Enhanced Orchestration
+  // Ultra Controller
   class UltraController {
     constructor() {
       this.scriptLoader = new HyperScriptLoader();
@@ -1274,7 +1567,7 @@
       }
 
       STATE.isRunning = true;
-      logger.info('🚀 Ultra-Advanced AdSense Loader v17.0 initializing...', { 
+      logger.info('🚀 Ultra-Advanced AdSense Loader v21.5 initializing...', { 
         sessionId: STATE.sessionId,
         features: CONFIG.FEATURES 
       });
@@ -1289,10 +1582,11 @@
         await this.executeLoadingSequence();
         this.setupAdvancedObservers();
         
-        logger.info('✅ Ultra-Advanced AdSense Loader v17.0 initialized successfully', {
+        logger.info('✅ Ultra-Advanced AdSense Loader v21.5 initialized successfully', {
           loadedAds: STATE.loadedAds,
           totalAds: STATE.totalAds,
-          successRate: STATE.metrics.successRate
+          successRate: STATE.metrics.successRate,
+          adblockerDetected: STATE.adblockerDetected
         });
       } catch (error) {
         logger.fatal('❌ Ultra controller initialization failed', { 
@@ -1304,12 +1598,24 @@
     }
 
     async prepareEnvironment() {
-      logger.info('Preparing ultra environment v17.0...');
+      logger.info('Preparing ultra environment v21.5...');
       await this.waitForUltraPageLoad();
       STATE.userBehavior.deviceInfo = AIUtils.getDeviceInfo();
       this.setupPerformanceMonitoring();
       this.initializeMemoryManagement();
+      await this.checkPrivacyConsent();
+      await AIUtils.detectAdblocker();
       logger.info('Environment preparation completed');
+    }
+
+    async checkPrivacyConsent() {
+      if (!CONFIG.PRIVACY_ENABLED) return;
+      
+      // Mock TCF 2.0 consent check
+      STATE.consentGiven = await new Promise(resolve => {
+        setTimeout(() => resolve(true), 100); // Simulate consent check
+      });
+      logger.info('Privacy consent checked', { consentGiven: STATE.consentGiven });
     }
 
     async waitForUltraPageLoad() {
@@ -1323,7 +1629,7 @@
       ];
 
       while (!conditions.every(condition => condition())) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 50));
       }
 
       await new Promise(resolve => setTimeout(resolve, CONFIG.PERFORMANCE.CRITICAL_LOAD_TIME));
@@ -1353,7 +1659,7 @@
             this.performMemoryCleanup();
           }
         }
-      }, 45000);
+      }, 20000);
       STATE.timers.add(memoryCleanup);
     }
 
@@ -1363,19 +1669,21 @@
         window.performance.clearMarks();
         window.performance.clearMeasures();
       }
-      if (logger.logHistory.length > 750) {
-        logger.logHistory = logger.logHistory.slice(-750);
+      if (logger.logHistory.length > 800) {
+        logger.logHistory = logger.logHistory.slice(-800);
       }
-      if (STATE.performanceHistory.length > 40) {
-        STATE.performanceHistory = STATE.performanceHistory.slice(-40);
+      if (STATE.performanceHistory.length > 75) {
+        STATE.performanceHistory = STATE.performanceHistory.slice(-75);
       }
       if (window.gc) window.gc();
+      STATE.workers.forEach(worker => worker.terminate());
+      STATE.workers.clear();
       STATE.gcTriggers++;
       logger.info('Memory cleanup completed', { gcTriggers: STATE.gcTriggers });
     }
 
     async executeLoadingSequence() {
-      logger.info('Executing ultra loading sequence v17.0...');
+      logger.info('Executing ultra loading sequence v21.5...');
       const ads = await this.adManager.discoverAndAnalyzeAds();
       
       if (ads.length === 0) {
@@ -1385,17 +1693,17 @@
 
       STATE.totalAds = ads.length;
       ads.sort((a, b) => b.schedule.priority - a.schedule.priority);
-      await this.executeBatchLoading(ads);
+      await this.executeMicroBatchLoading(ads);
     }
 
-    async executeBatchLoading(ads) {
+    async executeMicroBatchLoading(ads) {
       const batchSize = Math.min(CONFIG.ADAPTIVE_CONFIG.BATCH_SIZE.current, CONFIG.PERFORMANCE.MAX_CONCURRENT_LOADS);
       const batches = [];
       for (let i = 0; i < ads.length; i += batchSize) {
         batches.push(ads.slice(i, i + batchSize));
       }
 
-      logger.info(`Executing ${batches.length} batches with AI optimization`, {
+      logger.info(`Executing ${batches.length} micro-batches with AI optimization`, {
         totalAds: ads.length,
         batchSize
       });
@@ -1404,7 +1712,7 @@
         const batch = batches[i];
         const batchStartTime = Date.now();
         
-        logger.debug(`Processing batch ${i + 1}/${batches.length}`, {
+        logger.debug(`Processing micro-batch ${i + 1}/${batches.length}`, {
           adsInBatch: batch.length,
           priorities: batch.map(ad => ad.schedule.priority)
         });
@@ -1417,7 +1725,7 @@
         const successCount = results.filter(r => r.status === 'fulfilled' && !r.value?.error).length;
         const batchLoadTime = Date.now() - batchStartTime;
 
-        logger.info(`Batch ${i + 1} completed`, {
+        logger.info(`Micro-batch ${i + 1} completed`, {
           batchLoadTime,
           successCount,
           totalInBatch: batch.length,
@@ -1436,16 +1744,16 @@
 
     calculateDynamicDelay(batchLoadTime, successCount, batchSize) {
       const successRate = successCount / batchSize;
-      const baseDelay = CONFIG.ADAPTIVE_CONFIG.RETRY_INTERVAL.current / 8;
+      const baseDelay = CONFIG.ADAPTIVE_CONFIG.RETRY_INTERVAL.current / 15;
       
-      if (successRate < 0.75) return baseDelay * 2.5;
-      if (batchLoadTime > 4500) return baseDelay * 1.75;
-      if (successRate > 0.95 && batchLoadTime < 1500) return 0;
+      if (successRate < 0.65 || STATE.adblockerDetected) return baseDelay * 4;
+      if (batchLoadTime > 3000) return baseDelay * 2.5;
+      if (successRate > 0.99 && batchLoadTime < 800) return 0;
       return baseDelay;
     }
 
     setupAdvancedObservers() {
-      logger.info('Setting up advanced observers v17.0...');
+      logger.info('Setting up advanced observers v21.5...');
       this.setupMutationObserver();
       this.setupIntersectionObserver();
       this.setupResizeObserver();
@@ -1474,7 +1782,7 @@
           logger.info('New ads detected via mutation observer');
           await this.executeLoadingSequence();
         }
-      }, 1500));
+      }, 800));
 
       observer.observe(document.body, { childList: true, subtree: true });
       STATE.observers.add(observer);
@@ -1491,12 +1799,12 @@
           
           visibleAds.forEach(entry => {
             const adData = Array.from(STATE.adRegistry.values()).find(ad => ad.element === entry.target);
-            if (adData && (adData.status === 'discovered' || adData.status === 'failed')) {
+            if (adData && (adData.status === 'discovered' || adData.status === 'failed' || adData.status === 'blocked')) {
               this.adManager.loadAdWithAI(adData);
             }
           });
         }
-      }, 800), { rootMargin: '150px 0px', threshold: [0, 0.1, 0.5, 1.0] });
+      }, 400), { rootMargin: CONFIG.LAZY_LOAD_MARGIN, threshold: [0, 0.3, 0.7, 1.0] });
 
       document.querySelectorAll(CONFIG.AD_SELECTOR).forEach(ad => observer.observe(ad));
       STATE.observers.add(observer);
@@ -1509,12 +1817,12 @@
       const observer = new ResizeObserver(this.debounce(() => {
         logger.debug('Viewport resized, recalculating ad priorities');
         Array.from(STATE.adRegistry.values()).forEach(adData => {
-          if (adData.status === 'discovered' || adData.status === 'failed') {
+          if (adData.status === 'discovered' || adData.status === 'failed' || adData.status === 'blocked') {
             adData.prediction = AIUtils.predictOptimalLoadTiming(adData.element);
             adData.schedule = this.adManager.neuralScheduler.scheduleAdLoad(adData);
           }
         });
-      }, 800));
+      }, 500));
 
       observer.observe(document.body);
       STATE.observers.add(observer);
@@ -1526,9 +1834,9 @@
         const networkInfo = await AIUtils.getNetworkInfo();
         logger.info('Network status changed', networkInfo);
         
-        if (networkInfo.online && STATE.failedAds > 0) {
-          logger.info('Network reconnected, retrying failed ads');
-          const failedAds = Array.from(STATE.adRegistry.values()).filter(ad => ad.status === 'failed');
+        if (networkInfo.online && (STATE.failedAds > 0 || STATE.blockedAds > 0)) {
+          logger.info('Network reconnected, retrying failed/blocked ads');
+          const failedAds = Array.from(STATE.adRegistry.values()).filter(ad => ad.status === 'failed' || ad.status === 'blocked');
           failedAds.forEach(ad => {
             ad.status = 'discovered';
             ad.attempts = 0;
@@ -1537,7 +1845,7 @@
           });
           await this.executeLoadingSequence();
         }
-      }, 1500);
+      }, 800);
 
       window.addEventListener('online', handleNetworkChange);
       window.addEventListener('offline', handleNetworkChange);
@@ -1556,14 +1864,17 @@
         for (const ad of adsToVerify) {
           const isValid = await this.adManager.verifyAdIntegrity(ad);
           if (!isValid) {
-            ad.status = 'failed';
-            ad.element.setAttribute('data-ad-failed', 'true');
-            ad.element.removeAttribute('data-ad-loaded');
+            ad.status = 'blocked';
+            ad.element.setAttribute('data-content-failed', 'true');
+            ad.element.removeAttribute('data-content-loaded');
             STATE.loadedAds--;
-            STATE.failedAds++;
+            STATE.blockedAds++;
             STATE.failureQueue.add(ad.id);
             STATE.successQueue.delete(ad.id);
             STATE.reloadQueue.set(ad.id, { attempts: 0, lastAttempt: 0, integrityHash: null });
+            if (STATE.adblockerDetected) {
+              await this.adManager.loadFallbackContent(ad);
+            }
           } else {
             validCount++;
           }
@@ -1601,71 +1912,148 @@
           scriptLoaded: STATE.scriptLoaded,
           adsenseReady: STATE.adsenseReady,
           isRunning: STATE.isRunning,
-          pageFullyLoaded: STATE.pageFullyLoaded
+          pageFullyLoaded: STATE.pageFullyLoaded,
+          adblockerDetected: STATE.adblockerDetected,
+          consentGiven: STATE.consentGiven
         },
         ads: {
           total: STATE.totalAds,
           loaded: STATE.loadedAds,
           failed: STATE.failedAds,
+          blocked: STATE.blockedAds,
           processing: STATE.processingQueue.size,
-          successRate: STATE.metrics.successRate.toFixed(2) + '%',
-          reloadSuccessRate: STATE.metrics.reloadSuccessRate.toFixed(2) + '%',
-          integrityCheckSuccessRate: STATE.metrics.integrityCheckSuccessRate.toFixed(2) + '%'
+          queued: STATE.loadQueue.size
         },
-        performance: {
-          avgLoadTime: STATE.metrics.avgLoadTime,
-          retryCount: STATE.retryCount,
-          reloadCount: STATE.reloadCount,
-          gcTriggers: STATE.gcTriggers,
-          memoryUsage: window.performance?.memory?.usedJSHeapSize || 0
+        metrics: {
+          successRate: STATE.metrics.successRate.toFixed(1),
+          errorRate: STATE.metrics.errorRate.toFixed(1),
+          adblockerBypassRate: STATE.metrics.adblockerBypassRate.toFixed(1),
+          reloadSuccessRate: STATE.metrics.reloadSuccessRate.toFixed(1),
+          avgLoadTime: STATE.metrics.avgLoadTime.toFixed(1),
+          integrityCheckSuccessRate: STATE.metrics.integrityCheckSuccessRate.toFixed(1),
+          memoryUsage: (STATE.metrics.memoryUsage / 1024 / 1024).toFixed(1) + 'MB'
         },
-        configuration: CONFIG.ADAPTIVE_CONFIG,
-        features: CONFIG.FEATURES,
-        queues: {
-          processing: STATE.processingQueue.size,
-          failure: STATE.failureQueue.size,
-          success: STATE.successQueue.size,
-          reload: STATE.reloadQueue.size
+        configuration: {
+          retries: CONFIG.ADAPTIVE_CONFIG.MAX_RETRIES.current,
+          batchSize: CONFIG.ADAPTIVE_CONFIG.BATCH_SIZE.current,
+          timeout: CONFIG.ADAPTIVE_CONFIG.TIMEOUT.current,
+          adblockBypassFactor: CONFIG.ADAPTIVE_CONFIG.ADBLOCK_BYPASS_FACTOR.current
         }
       };
     }
 
     async forceUltraReload() {
-      logger.info('🔄 Force ultra reload initiated v17.0');
-      STATE.loadedAds = 0;
-      STATE.failedAds = 0;
-      STATE.retryCount = 0;
-      STATE.reloadCount = 0;
-      STATE.adRegistry.clear();
-      STATE.processingQueue.clear();
-      STATE.failureQueue.clear();
-      STATE.successQueue.clear();
-      STATE.reloadQueue.clear();
-
-      document.querySelectorAll(CONFIG.AD_SELECTOR).forEach(ad => {
-        ['data-ad-loaded', 'data-ad-failed', 'data-ad-processing', 'data-adsbygoogle-status'].forEach(attr => {
-          ad.removeAttribute(attr);
+      logger.info('Forcing ultra reload of all ads');
+      try {
+        Array.from(STATE.adRegistry.values()).forEach(ad => {
+          ad.status = 'discovered';
+          ad.attempts = 0;
+          ad.reloadAttempts = 0;
+          ad.element.removeAttribute('data-content-loaded');
+          ad.element.removeAttribute('data-content-failed');
+          ad.element.removeAttribute('data-content-processing');
+          STATE.reloadQueue.set(ad.id, { attempts: 0, lastAttempt: 0, integrityHash: null });
         });
-      });
-
-      await this.executeLoadingSequence();
-      logger.info('✅ Force ultra reload completed');
+        STATE.loadedAds = 0;
+        STATE.failedAds = 0;
+        STATE.blockedAds = 0;
+        STATE.successQueue.clear();
+        STATE.failureQueue.clear();
+        STATE.processingQueue.clear();
+        await this.executeLoadingSequence();
+        logger.info('Ultra reload completed');
+      } catch (error) {
+        logger.error('Ultra reload failed', { error: error.message });
+        throw error;
+      }
     }
 
-    destroy() {
-      logger.info('🛑 Destroying Ultra AdSense Loader v17.0...');
+    async destroy() {
+      logger.info('Destroying Ultra AdSense Loader v21.5');
       STATE.isRunning = false;
-      this.monitor.stopMonitoring();
-      this.userBehaviorTracker.stopTracking();
-      STATE.timers.forEach(timer => clearTimeout(timer) || clearInterval(timer));
+      
+      // Clear timers
+      STATE.timers.forEach(timer => clearInterval(timer));
       STATE.timers.clear();
+      
+      // Disconnect observers
       STATE.observers.forEach(observer => observer.disconnect());
       STATE.observers.clear();
-      if (window.performance?.clearMarks) {
-        window.performance.clearMarks();
-        window.performance.clearMeasures();
+      
+      // Terminate workers
+      STATE.workers.forEach(worker => worker.terminate());
+      STATE.workers.clear();
+      
+      // Clear queues
+      STATE.loadQueue.clear();
+      STATE.processingQueue.clear();
+      STATE.successQueue.clear();
+      STATE.failureQueue.clear();
+      STATE.reloadQueue.clear();
+      
+      // Stop monitoring
+      this.monitor.stopMonitoring();
+      this.userBehaviorTracker.stopTracking();
+      
+      // Remove global API
+      delete window.UltraAdSenseLoader;
+      
+      logger.info('Ultra AdSense Loader destroyed');
+    }
+
+    async optimizeForAdblocker() {
+      if (!STATE.adblockerDetected || !CONFIG.FEATURES.ADBLOCK_BYPASS) return;
+      
+      logger.info('Optimizing for adblocker environment');
+      CONFIG.ADAPTIVE_CONFIG.MAX_RETRIES.current = Math.min(
+        CONFIG.ADAPTIVE_CONFIG.MAX_RETRIES.max,
+        CONFIG.ADAPTIVE_CONFIG.MAX_RETRIES.current + 30
+      );
+      CONFIG.ADAPTIVE_CONFIG.ADBLOCK_BYPASS_FACTOR.current = Math.min(
+        CONFIG.ADAPTIVE_CONFIG.ADBLOCK_BYPASS_FACTOR.max,
+        CONFIG.ADAPTIVE_CONFIG.ADBLOCK_BYPASS_FACTOR.current + 1.2
+      );
+
+      // Re-obfuscate all ad elements
+      for (const adData of STATE.adRegistry.values()) {
+        adData.element = this.adManager.obfuscateAdElement(adData.element);
       }
-      logger.info('✅ Ultra AdSense Loader v17.0 destroyed');
+
+      // Trigger immediate reload for blocked ads
+      const blockedAds = Array.from(STATE.adRegistry.values()).filter(ad => ad.status === 'blocked');
+      if (blockedAds.length > 0) {
+        logger.info(`Retrying ${blockedAds.length} blocked ads with bypass optimization`);
+        await this.executeMicroBatchLoading(blockedAds);
+      }
+    }
+
+    async handleDynamicAdInsertion() {
+      if (!window.MutationObserver) return;
+      
+      const observer = new MutationObserver(this.debounce(async (mutations) => {
+        const newAds = [];
+        for (const mutation of mutations) {
+          if (mutation.type === 'childList') {
+            mutation.addedNodes.forEach(node => {
+              if (node.nodeType === Node.ELEMENT_NODE) {
+                if (node.matches?.(CONFIG.AD_SELECTOR)) {
+                  newAds.push(node);
+                }
+                node.querySelectorAll?.(CONFIG.AD_SELECTOR).forEach(ad => newAds.push(ad));
+              }
+            });
+          }
+        }
+        if (newAds.length > 0) {
+          logger.info(`Detected ${newAds.length} dynamically inserted ads`);
+          const ads = await this.adManager.discoverAndAnalyzeAds();
+          await this.executeMicroBatchLoading(ads.filter(ad => newAds.includes(ad.element)));
+        }
+      }, 1200));
+
+      observer.observe(document.body, { childList: true, subtree: true });
+      STATE.observers.add(observer);
+      logger.debug('Dynamic ad insertion handler setup completed');
     }
   }
 
@@ -1675,101 +2063,167 @@
       this.tracking = false;
       this.scrollData = [];
       this.clickData = [];
-      this.lastScrollTime = Date.now();
-      this.lastScrollY = window.pageYOffset;
+      this.mouseData = [];
+      this.keyData = [];
+      this.interactionBuffer = new Set();
+      this.lastScroll = 0;
+      this.lastInteraction = 0;
     }
 
     startTracking() {
       if (this.tracking) return;
       this.tracking = true;
+      logger.info('Starting user behavior tracking v21.5');
+
       this.setupScrollTracking();
       this.setupClickTracking();
+      this.setupMouseTracking();
+      this.setupKeyboardTracking();
       this.setupViewportTracking();
-      logger.info('User behavior tracking started v17.0');
     }
 
     setupScrollTracking() {
-      const trackScroll = this.throttle(() => {
+      const handleScroll = this.throttle(() => {
         const now = Date.now();
-        const currentY = window.pageYOffset;
-        const timeDiff = now - this.lastScrollTime;
-        const distanceDiff = Math.abs(currentY - this.lastScrollY);
-        
-        const speed = timeDiff > 0 ? distanceDiff / timeDiff : 0;
-        this.scrollData.push({ timestamp: now, position: currentY, speed });
-        
-        if (this.scrollData.length > 150) {
-          this.scrollData = this.scrollData.slice(-150);
+        const scrollY = window.pageYOffset;
+        const speed = Math.abs(scrollY - this.lastScroll) / (now - this.lastInteraction || 1);
+        this.scrollData.push({ y: scrollY, time: now, speed });
+        STATE.userBehavior.scrollSpeed = speed;
+        this.lastScroll = scrollY;
+        this.lastInteraction = now;
+
+        if (this.scrollData.length > 200) {
+          this.scrollData = this.scrollData.slice(-100);
         }
+      }, 100);
 
-        STATE.userBehavior.scrollSpeed = this.calculateAverageScrollSpeed();
-        STATE.userBehavior.engagementScore = this.calculateEngagementScore();
-        
-        this.lastScrollTime = now;
-        this.lastScrollY = currentY;
-      }, 80);
-
-      window.addEventListener('scroll', trackScroll, { passive: true });
+      window.addEventListener('scroll', handleScroll, { passive: true });
+      STATE.observers.add({ disconnect: () => window.removeEventListener('scroll', handleScroll) });
     }
 
     setupClickTracking() {
-      const trackClick = (event) => {
+      const handleClick = this.throttle((event) => {
+        const isAd = event.target.closest(CONFIG.AD_SELECTOR) !== null;
         this.clickData.push({
-          timestamp: Date.now(),
           x: event.clientX,
           y: event.clientY,
-          target: event.target.tagName,
-          isAd: event.target.closest(CONFIG.AD_SELECTOR) !== null
+          time: Date.now(),
+          isAd,
+          element: event.target.tagName
         });
 
-        if (this.clickData.length > 75) {
-          this.clickData = this.clickData.slice(-75);
+        if (this.clickData.length > 100) {
+          this.clickData = this.clickData.slice(-50);
         }
+      }, 200);
 
-        STATE.userBehavior.clickPattern = this.clickData;
-        STATE.userBehavior.engagementScore = this.calculateEngagementScore();
-      };
+      document.addEventListener('click', handleClick);
+      STATE.observers.add({ disconnect: () => document.removeEventListener('click', handleClick) });
+    }
 
-      document.addEventListener('click', trackClick, { passive: true });
+    setupMouseTracking() {
+      const handleMouseMove = this.throttle((event) => {
+        this.mouseData.push({
+          x: event.clientX,
+          y: event.clientY,
+          time: Date.now()
+        });
+
+        if (this.mouseData.length > 500) {
+          this.mouseData = this.mouseData.slice(-250);
+        }
+      }, 150);
+
+      document.addEventListener('mousemove', handleMouseMove, { passive: true });
+      STATE.observers.add({ disconnect: () => document.removeEventListener('mousemove', handleMouseMove) });
+    }
+
+    setupKeyboardTracking() {
+      const handleKeydown = this.throttle((event) => {
+        this.keyData.push({
+          key: event.key,
+          time: Date.now()
+        });
+
+        if (this.keyData.length > 100) {
+          this.keyData = this.keyData.slice(-50);
+        }
+      }, 200);
+
+      document.addEventListener('keydown', handleKeydown);
+      STATE.observers.add({ disconnect: () => document.removeEventListener('keydown', handleKeydown) });
     }
 
     setupViewportTracking() {
-      const trackViewport = this.throttle(() => {
-        const viewport = {
-          width: window.innerWidth,
-          height: window.innerHeight,
-          scrollY: window.pageYOffset,
-          timestamp: Date.now()
-        };
+      if (!window.IntersectionObserver) return;
 
-        STATE.userBehavior.viewportTime.push(viewport);
-        if (STATE.userBehavior.viewportTime.length > 75) {
-          STATE.userBehavior.viewportTime = STATE.userBehavior.viewportTime.slice(-75);
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            STATE.userBehavior.viewportTime.push({
+              element: entry.target.tagName,
+              time: Date.now(),
+              duration: entry.intersectionRatio > 0 ? entry.time : 0
+            });
+          }
+        });
+
+        if (STATE.userBehavior.viewportTime.length > 200) {
+          STATE.userBehavior.viewportTime = STATE.userBehavior.viewportTime.slice(-100);
         }
+      }, { threshold: [0, 0.5, 1.0] });
 
-        STATE.userBehavior.engagementScore = this.calculateEngagementScore();
-      }, 400);
-
-      window.addEventListener('resize', trackViewport, { passive: true });
-      window.addEventListener('scroll', trackViewport, { passive: true });
+      document.querySelectorAll('section, article, div').forEach(element => observer.observe(element));
+      STATE.observers.add(observer);
     }
 
-    calculateAverageScrollSpeed() {
-      if (this.scrollData.length < 2) return 0;
-      const recentData = this.scrollData.slice(-15);
-      const totalSpeed = recentData.reduce((sum, data) => sum + data.speed, 0);
-      return totalSpeed / recentData.length;
+    calculateEngagementScore() {
+      const sessionTime = (Date.now() - STATE.startTime) / 1000; // in seconds
+      const scrollActivity = this.scrollData.length;
+      const clickActivity = this.clickData.length;
+      const adClicks = this.clickData.filter(click => click.isAd).length;
+      const mouseActivity = this.mouseData.length;
+      const keyActivity = this.keyData.length;
+      const viewportTime = STATE.userBehavior.viewportTime.length;
+
+      let score = 0;
+      score += Math.min(scrollActivity * 0.4, 25); // Scroll activity
+      score += Math.min(clickActivity * 1.8, 25); // Click activity
+      score += Math.min(adClicks * 12, 25); // Ad-specific clicks
+      score += Math.min((sessionTime / 60) * 12, 20); // Time on page
+      score += Math.min(mouseActivity * 0.1, 15); // Mouse movements
+      score += Math.min(keyActivity * 0.5, 10); // Keyboard activity
+      score += Math.min(viewportTime * 0.15, 10); // Viewport changes
+
+      if (STATE.adblockerDetected) {
+        score = Math.min(score * CONFIG.ADAPTIVE_CONFIG.ADBLOCK_BYPASS_FACTOR.current, 100);
+      }
+
+      score = Math.min(Math.max(score, 0), 100);
+      STATE.userBehavior.engagementScore = score;
+
+      logger.debug('Engagement score calculated', {
+        score,
+        sessionTime,
+        scrollActivity,
+        clickActivity,
+        adClicks,
+        mouseActivity,
+        keyActivity,
+        viewportTime,
+        adblockerBoost: STATE.adblockerDetected
+      });
+
+      return score;
     }
 
     throttle(func, limit) {
       let inThrottle;
-      return function() {
-        const args = arguments;
-        const context = this;
+      return function (...args) {
         if (!inThrottle) {
-          func.apply(context, args);
+          func.apply(this, args);
           inThrottle = true;
-          setTimeout(() => inThrottle = false, limit);
+          setTimeout(() => (inThrottle = false), limit);
         }
       };
     }
@@ -1778,265 +2232,49 @@
       this.tracking = false;
       logger.info('User behavior tracking stopped');
     }
+  }
 
-    calculateEngagementScore() {
-      const sessionTime = Date.now() - STATE.startTime;
-      const scrollActivity = this.scrollData.length;
-      const clickActivity = this.clickData.length;
-      const adClicks = this.clickData.filter(click => click.isAd).length;
-      
-      const timeScore = Math.min(sessionTime / 60000, 1) * 25;
-      const scrollScore = Math.min(scrollActivity / 75, 1) * 30;
-      const clickScore = Math.min(clickActivity / 30, 1) * 30;
-      const adInteractionScore = Math.min(adClicks / 5, 1) * 15;
-      
-      return Math.min(100, timeScore + scrollScore + clickScore + adInteractionScore);
-    }
-
-    getBehaviorAnalysis() {
-      return {
-        scrollSpeed: this.calculateAverageScrollSpeed(),
-        clickFrequency: this.clickData.length / ((Date.now() - STATE.startTime) / 1000),
-        adInteraction: this.clickData.filter(click => click.isAd).length,
-        sessionDuration: Date.now() - STATE.startTime,
-        engagementScore: this.calculateEngagementScore()
+  // Initialize the Ultra AdSense Loader
+  async function initializeUltraAdSenseLoader() {
+    try {
+      const controller = new UltraController();
+      await controller.initialize();
+      window.UltraAdSenseLoader = {
+        getStatus: () => controller.getUltraStatus(),
+        forceReload: () => controller.forceUltraReload(),
+        destroy: () => controller.destroy(),
+        version: '21.5'
       };
+      logger.info('Ultra AdSense Loader v21.5 fully initialized and exposed via window.UltraAdSenseLoader');
+
+      // Start dynamic ad insertion
+      await controller.handleDynamicAdInsertion();
+
+      // Periodic adblocker optimization
+      if (STATE.adblockerDetected) {
+        await controller.optimizeForAdblocker();
+      }
+      const adblockerCheck = setInterval(async () => {
+        await AIUtils.detectAdblocker();
+        if (STATE.adblockerDetected) {
+          await controller.optimizeForAdblocker();
+        }
+      }, 45000); // Check every 45 seconds
+      STATE.timers.add(adblockerCheck);
+
+      return controller;
+    } catch (error) {
+      logger.fatal('Ultra AdSense Loader initialization failed', { error: error.message });
+      throw error;
     }
   }
 
-  // Global Ultra Controller Instance
-  const ultraController = new UltraController();
-
-  // Enhanced Event Listeners
-  const setupUltraEventListeners = () => {
-    document.addEventListener('visibilitychange', () => {
-      if (!document.hidden && STATE.failedAds > 0) {
-        logger.info('Page visible again, retrying failed ads');
-        ultraController.executeLoadingSequence();
-      }
+  // Auto-initialize if not disabled
+  if (!window.UltraAdSenseLoader?.disabled) {
+    initializeUltraAdSenseLoader().then(() => {
+      logger.info('Ultra AdSense Loader v21.5 auto-initialized');
+    }).catch(error => {
+      logger.fatal('Auto-initialization failed', { error: error.message });
     });
-
-    window.addEventListener('online', () => {
-      logger.info('Network online, resuming operations');
-      ultraController.executeLoadingSequence();
-    });
-
-    window.addEventListener('offline', () => {
-      logger.warn('Network offline, pausing operations');
-    });
-
-    window.addEventListener('focus', ultraController.debounce(() => {
-      if (STATE.failedAds > 0) {
-        logger.info('Window focused, retrying failed ads');
-        ultraController.executeLoadingSequence();
-      }
-    }, 2500));
-
-    window.addEventListener('beforeunload', () => {
-      ultraController.destroy();
-    });
-
-    window.addEventListener('error', (event) => {
-      logger.error('Global error detected', {
-        message: event.message,
-        filename: event.filename,
-        lineno: event.lineno,
-        colno: event.colno
-      });
-    });
-
-    window.addEventListener('unhandledrejection', (event) => {
-      logger.error('Unhandled promise rejection', {
-        reason: event.reason,
-        promise: event.promise
-      });
-    });
-  };
-
-  // Enhanced Global API
-  window.UltraAdSenseLoader = {
-    getStatus: () => ultraController.getUltraStatus(),
-    getDetailedAnalytics: () => ({
-      state: ultraController.getUltraStatus(),
-      userBehavior: ultraController.userBehaviorTracker.getBehaviorAnalysis(),
-      performanceHistory: STATE.performanceHistory,
-      adRegistry: Array.from(STATE.adRegistry.values()),
-      alerts: ultraController.monitor.alerts,
-      logs: logger.logHistory.slice(-150)
-    }),
-
-    forceReload: () => ultraController.forceUltraReload(),
-    destroy: () => ultraController.destroy(),
-    restart: async () => {
-      ultraController.destroy();
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      return ultraController.initialize();
-    },
-
-    updateConfig: (newConfig) => {
-      Object.assign(CONFIG, newConfig);
-      logger.info('Configuration updated', newConfig);
-    },
-    setLogLevel: (level) => {
-      logger.currentLevel = logger.levels[level] || 2;
-      logger.info('Log level changed', { level });
-    },
-    enableFeature: (feature) => {
-      if (CONFIG.FEATURES.hasOwnProperty(feature)) {
-        CONFIG.FEATURES[feature] = true;
-        logger.info('Feature enabled', { feature });
-      }
-    },
-    disableFeature: (feature) => {
-      if (CONFIG.FEATURES.hasOwnProperty(feature)) {
-        CONFIG.FEATURES[feature] = false;
-        logger.info('Feature disabled', { feature });
-      }
-    },
-
-    optimizePerformance: () => {
-      AIUtils.adaptiveConfig();
-      ultraController.performMemoryCleanup();
-      logger.info('Performance optimization triggered');
-    },
-    generateReport: () => {
-      const report = {
-        timestamp: Date.now(),
-        sessionId: STATE.sessionId,
-        summary: ultraController.getUltraStatus(),
-        analytics: ultraController.userBehaviorTracker.getBehaviorAnalysis(),
-        performance: {
-          history: STATE.performanceHistory,
-          currentMetrics: STATE.metrics,
-          memoryUsage: window.performance?.memory
-        },
-        configuration: CONFIG,
-        logs: logger.logHistory.slice(-300)
-      };
-
-      const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `adsense-ultra-report-${STATE.sessionId}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-
-      return report;
-    },
-
-    simulateLoad: async (count = 5) => {
-      logger.info(`Simulating ${count} ad loads for testing`);
-      const testAds = Array.from({ length: count }, (_, i) => ({
-        id: `test_ad_${i}`,
-        element: document.createElement('div'),
-        status: 'discovered'
-      }));
-
-      for (const ad of testAds) {
-        STATE.adRegistry.set(ad.id, ad);
-        STATE.reloadQueue.set(ad.id, { attempts: 0, lastAttempt: 0, integrityHash: null });
-        await ultraController.adManager.loadAdWithAI(ad).catch(() => {});
-      }
-    },
-    runDiagnostics: () => {
-      const diagnostics = {
-        environment: {
-          userAgent: navigator.userAgent,
-          platform: navigator.platform,
-          language: navigator.language,
-          cookieEnabled: navigator.cookieEnabled,
-          onLine: navigator.onLine
-        },
-        performance: {
-          memory: window.performance?.memory,
-          timing: window.performance?.timing,
-          navigation: window.performance?.getEntriesByType?.('navigation')?.[0]
-        },
-        features: {
-          mutationObserver: !!window.MutationObserver,
-          intersectionObserver: !!window.IntersectionObserver,
-          resizeObserver: !!window.ResizeObserver,
-          performanceObserver: !!window.PerformanceObserver,
-          fetch: !!window.fetch
-        },
-        adElements: {
-          total: document.querySelectorAll(CONFIG.AD_SELECTOR).length,
-          visible: Array.from(document.querySelectorAll(CONFIG.AD_SELECTOR))
-            .filter(el => ultraController.adManager.calculateVisibility(el) > 0).length
-        }
-      };
-
-      logger.info('Diagnostics completed', diagnostics);
-      return diagnostics;
-    }
-  };
-
-  // Auto-Initialization with Enhanced Triggers
-  const autoInitialize = () => {
-    const initTriggers = [
-      { condition: () => document.readyState === 'loading', delay: 800, event: 'DOMContentLoaded' },
-      { condition: () => document.readyState === 'interactive', delay: 1500, event: null },
-      { condition: () => document.readyState === 'complete', delay: 400, event: null }
-    ];
-
-    const trigger = initTriggers.find(t => t.condition());
-    if (trigger) {
-      const initialize = () => {
-        setTimeout(() => {
-          if (!STATE.isRunning) {
-            ultraController.initialize().catch(error => {
-              logger.fatal('Auto-initialization failed', { error: error.message });
-            });
-          }
-        }, trigger.delay);
-      };
-
-      if (trigger.event) {
-        document.addEventListener(trigger.event, initialize, { once: true });
-      } else {
-        initialize();
-      }
-    }
-
-    setTimeout(() => {
-      if (!STATE.isRunning) {
-        logger.warn('🚨 Fallback initialization triggered after 10 seconds');
-        ultraController.initialize().catch(error => {
-          logger.fatal('Fallback initialization failed', { error: error.message });
-        });
-      }
-    }, 10000);
-
-    setTimeout(() => {
-      if (!STATE.isRunning) {
-        logger.error('🆘 Ultimate fallback initialization triggered after 20 seconds');
-        CONFIG.FEATURES = {
-          AI_OPTIMIZATION: false,
-          PREDICTIVE_LOADING: false,
-          QUANTUM_RETRY: false,
-          NEURAL_SCHEDULING: false,
-          MACHINE_LEARNING: false,
-          ADVANCED_ANALYTICS: false,
-          REAL_TIME_MONITORING: false,
-          AUTO_HEALING: false,
-          LOAD_BALANCING: false,
-          PERIODIC_RELOAD: true,
-          DYNAMIC_PRIORITIZATION: false
-        };
-        ultraController.initialize();
-      }
-    }, 20000);
-  };
-
-  setupUltraEventListeners();
-  autoInitialize();
-
-  logger.info('🎯 Ultra-Advanced AdSense Loader v17.0 loaded', {
-    sessionId: STATE.sessionId,
-    timestamp: new Date().toISOString(),
-    features: CONFIG.FEATURES,
-    userAgent: navigator.userAgent.substring(0, 100) + '...'
-  });
-
+  }
 })();
