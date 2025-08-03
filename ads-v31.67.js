@@ -7,7 +7,6 @@
     PRIMARY_SCRIPT_URL: 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js',
     FALLBACK_SCRIPT_URLS: [
       'https://googleads.g.doubleclick.net/pagead/js/adsbygoogle.js',
-      'https://adservice.google.com/adsid/google/ads.js',
       'https://securepubads.g.doubleclick.net/tag/js/gpt.js',
       'https://tpc.googlesyndication.com/pagead/js/adsbygoogle.js'
     ],
